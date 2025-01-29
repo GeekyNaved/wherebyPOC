@@ -1,33 +1,56 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, PermissionsAndroid, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Button, StyleSheet, PermissionsAndroid, Platform, Alert, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { ROOM_URL } from '../constants';
 
 export default function CustomWebView() {
   const [roomUrl, setRoomUrl] = useState('');
 
-  useEffect(() => {
-    requestPermissions();
-  }, []);
-
   const requestPermissions = async () => {
     if (Platform.OS === 'android') {
       try {
-        const granted = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        ]);
-        if (
-          granted[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED &&
-          granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED
-        ) {
-          console.log('Camera and Audio permissions granted');
+        const cameraPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+        const audioPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+
+        if (cameraPermission && audioPermission) {
+          console.log('Camera and Audio permissions already granted');
+          createRoom(); // If permissions granted, proceed to create room
         } else {
-          console.log('Permissions denied');
+          // Request permissions if not granted
+          const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          ]);
+
+          if (
+            granted[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED &&
+            granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED
+          ) {
+            console.log('Camera and Audio permissions granted');
+            createRoom(); // Proceed after permissions are granted
+          } else {
+            Alert.alert(
+              'Permissions Required',
+              'To continue, please grant camera and audio permissions in the app settings.',
+              [
+                {
+                  text: 'Go to Settings',
+                  onPress: () => Linking.openSettings(),
+                },
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                },
+              ]
+            );
+          }
         }
       } catch (err) {
         console.warn(err);
       }
+    } else if (Platform.OS === 'ios') {
+      // Handle iOS permissions here if needed
+      createRoom(); // Assume permissions are handled via native iOS APIs
     }
   };
 
@@ -39,12 +62,10 @@ export default function CustomWebView() {
     <>
       {!roomUrl ? (
         <View style={styles.container}>
-          <Text style={styles.title}>Create a Video Room</Text>
-          <Button title="Create Room" onPress={createRoom} />
+          <Button title="Start call" onPress={requestPermissions} />
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Join the Meeting</Text>
           <WebView
             source={{ uri: roomUrl }}
             style={styles.webview}
